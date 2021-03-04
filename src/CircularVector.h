@@ -6,7 +6,7 @@
 class CircularVector
 {
 public:
-    CircularVector(unsigned int vectorItemCount, float signalZScore);
+    CircularVector(unsigned int vectorItemCount, int minimalThreashold, float signalZScore);
 
     bool IsSignalElseInsert(int value);
     void InsertItem(int value);
@@ -18,6 +18,7 @@ public:
 private:
     // Number of items in the circular vector
     unsigned int _vectorItemCount;
+    int _minimalThreshold;
     float _signalZScore;
 
     std::vector<int> _circularVector;

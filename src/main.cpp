@@ -21,7 +21,13 @@ CircularVector *_circularVector = nullptr;
 SignalDetector *_signalDetector = nullptr;
 
 unsigned long _lastDetectionTime = 0;
-long _currentWattage = 0;
+unsigned long _detectionTimeDifference = 0;
+
+long _lastDetectionWattage = 0;
+int _lastDetectionValue = 0;
+int _lastDetectionMean = 0;
+float _lastDetectionStddev = 0;
+float _lastDetectionZScore = 0;
 
 unsigned long _lastMeasurementTime = 0;
 
@@ -98,6 +104,12 @@ void handleRootRequest()
                   "Update URL: /update\n");
 }
 
+void handleRebootRequest()
+{
+  _webServer.send(200, "text/plain; charset=utf-8", "Rebooting!");
+  ESP.restart();
+}
+
 void handleMetricsRequest()
 {
   static const char *metricsTemplate =
@@ -112,13 +124,19 @@ void handleMetricsRequest()
       "smartferraris_last_value %d\n\n"
       "# HELP smartferraris_calculated_mean The calculated mean of the lag.\n"
       "# TYPE smartferraris_calculated_mean counter\n"
-      "smartferraris_calculated_mean %d\n"
+      "smartferraris_calculated_mean %d\n\n"
       "# HELP smartferraris_calculated_stddev The calculated standard derivation of the lag.\n"
       "# TYPE smartferraris_calculated_stddev counter\n"
-      "smartferraris_calculated_stddev %f\n"
+      "smartferraris_calculated_stddev %f\n\n"
       "# HELP smartferraris_calculated_zscore The calculated zscore of the lag.\n"
       "# TYPE smartferraris_calculated_zscore gauge\n"
-      "smartferraris_calculated_zscore %f\n";
+      "smartferraris_calculated_zscore %f\n\n"
+      "# HELP smartferraris_detection_time_difference The difference between each detection.\n"
+      "# TYPE smartferraris_detection_time_difference gauge\n"
+      "smartferraris_detection_time_difference %d\n\n"
+      "# HELP smartferraris_current_mean The current mean.\n"
+      "# TYPE smartferraris_current_mean gauge\n"
+      "smartferraris_current_mean %d\n\n";
 
   // Make sure the pointer is initialized
   if (_circularVector == nullptr)
@@ -129,11 +147,13 @@ void handleMetricsRequest()
   char responseBuffer[1500];
   snprintf(responseBuffer, sizeof(responseBuffer), metricsTemplate,
            millis(),
-           _currentWattage,
-           _circularVector->GetCurrentValue(),
-           _circularVector->GetCurrentMean(),
-           _circularVector->GetCurrentStddev(),
-           _circularVector->GetCurrentZScore());
+           _lastDetectionWattage,
+           _lastDetectionValue,
+           _lastDetectionMean,
+           _lastDetectionStddev,
+           _lastDetectionZScore,
+           _detectionTimeDifference,
+           _circularVector->GetCurrentMean());
 
   _webServer.send(200, "text/plain; charset=utf-8", responseBuffer);
 }
@@ -144,6 +164,7 @@ void startWebServer()
 
   _webServer.on("/", handleRootRequest);
   _webServer.on("/metrics", handleMetricsRequest);
+  _webServer.on("/reboot", handleRebootRequest);
   _webServer.begin();
 
   Serial.println(" OK");
@@ -171,17 +192,24 @@ void onSignalDetected()
   Serial.println("Got detection");
 
   // Calculate time difference between detection
-  long detectionTimeDifferecne = millis() - _lastDetectionTime;
+  _detectionTimeDifference = millis() - _lastDetectionTime;
 
   // Calculate wattage
-  long wattage = 3600000000 / (KWH_PER_U * detectionTimeDifferecne);
+  long wattage = 3600000000 / (KWH_PER_U * _detectionTimeDifference);
 
-  _currentWattage = wattage;
+  _lastDetectionWattage = wattage;
+  _lastDetectionTime = millis();
+
+  // Save statistics of this detection
+  _lastDetectionValue = _circularVector->GetCurrentValue();
+  _lastDetectionMean = _circularVector->GetCurrentMean();
+  _lastDetectionStddev = _circularVector->GetCurrentStddev();
+  _lastDetectionZScore = _circularVector->GetCurrentZScore();
 }
 
 void configureSmartFerraris()
 {
-  _circularVector = new CircularVector(LAG_SIZE, ZSCORE_THREASHOLD);
+  _circularVector = new CircularVector(LAG_SIZE, MIN_THRESHOLD, ZSCORE_THREASHOLD);
   _signalDetector = new SignalDetector(_circularVector, COUNT_FOR_DETECTION, COUNT_FOR_RELEASE, &onSignalDetected);
 }
 

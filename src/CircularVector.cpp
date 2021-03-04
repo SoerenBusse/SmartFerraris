@@ -5,7 +5,7 @@
 
 using namespace std;
 
-CircularVector::CircularVector(unsigned int vectorItemCount, float signalZScore) : _vectorItemCount{vectorItemCount}, _signalZScore{signalZScore}
+CircularVector::CircularVector(unsigned int vectorItemCount, int minimalThreshold, float signalZScore) : _vectorItemCount{vectorItemCount}, _minimalThreshold{minimalThreshold}, _signalZScore{signalZScore}
 {
 }
 
@@ -50,6 +50,14 @@ bool CircularVector::IsSignalElseInsert(int value)
     _currentStddev = stddev;
     _currentZScore = z;
     _currentValue = value;
+
+    // Check if the value is greater then the minimal threashold
+    if (value < mean + _minimalThreshold)
+    {
+        InsertItem(value);
+        
+        return false;
+    }
 
     // Is out z-score higher then the required z-score for being a signal?
     // Then we're returning true and doesn't add the signal to our circular vector
