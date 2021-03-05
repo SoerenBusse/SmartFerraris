@@ -31,6 +31,8 @@ bool CircularVector::IsSignalElseInsert(int value)
     // If mean equals zero bad things will happen ;)
     if (mean == 0)
     {
+        InsertItem(value);
+
         return false;
     }
 
@@ -39,6 +41,8 @@ bool CircularVector::IsSignalElseInsert(int value)
     // The same goes for stddev
     if (stddev == 0)
     {
+        InsertItem(value);
+  
         return false;
     }
 
