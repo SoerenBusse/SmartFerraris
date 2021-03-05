@@ -28,8 +28,10 @@ int _lastDetectionValue = 0;
 int _lastDetectionMean = 0;
 float _lastDetectionStddev = 0;
 float _lastDetectionZScore = 0;
+int _lastMeasurementValue = 0;
 
 unsigned long _lastMeasurementTime = 0;
+unsigned long _totalMeasurementCount = 0;
 
 void connectToWiFi()
 {
@@ -116,12 +118,21 @@ void handleMetricsRequest()
       "# HELP esp_uptime The uptime of the ESP in milliseconds.\n"
       "# TYPE esp_uptime counter\n"
       "esp_uptime %u\n\n"
+      "# HELP esp_free_heap The free heap of the ESP.\n"
+      "# TYPE esp_free_heap gauge\n"
+      "esp_free_heap %u\n\n"
+      "# HELP smartferraris_measurement_count The total measurements taken since start.\n"
+      "# TYPE smartferraris_measurement_count counter\n"
+      "smartferraris_measurement_count %d\n\n"
       "# HELP smartferraris_current_wattage The currently used energy in W.\n"
       "# TYPE smartferraris_current_wattage gauge\n"
       "smartferraris_current_wattage %d\n\n"
       "# HELP smartferraris_last_value The last analog value read from TCR5000.\n"
       "# TYPE smartferraris_last_value gauge\n"
       "smartferraris_last_value %d\n\n"
+      "# HELP smartferraris_last_value The last value of a detected signal.\n"
+      "# TYPE smartferraris_last_value gauge\n"
+      "smartferraris_last_signal_value %d\n\n"
       "# HELP smartferraris_calculated_mean The calculated mean of the lag.\n"
       "# TYPE smartferraris_calculated_mean counter\n"
       "smartferraris_calculated_mean %d\n\n"
@@ -144,10 +155,13 @@ void handleMetricsRequest()
     _webServer.send(500, "text/plain; charset=utf-8", "CircularVector is nullptr");
   }
 
-  char responseBuffer[1500];
+  char responseBuffer[2000];
   snprintf(responseBuffer, sizeof(responseBuffer), metricsTemplate,
            millis(),
+           ESP.getFreeHeap(),
+           _totalMeasurementCount,
            _lastDetectionWattage,
+           _lastMeasurementValue,
            _lastDetectionValue,
            _lastDetectionMean,
            _lastDetectionStddev,
@@ -242,7 +256,11 @@ void loop()
   {
     _lastMeasurementTime = millis();
 
-    _signalDetector->AddMeasurement(analogRead(SENSOR_ANALOG_PIN));
+    int analogValue = analogRead(SENSOR_ANALOG_PIN);
+    _lastMeasurementValue = analogValue;
+    _totalMeasurementCount++;
+
+    _signalDetector->AddMeasurement(analogValue);
   }
 
   _webServer.handleClient();
